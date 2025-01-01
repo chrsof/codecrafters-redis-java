@@ -84,12 +84,9 @@ public class RedisServer {
         String message = (String) key.attachment();
 
         Pattern ping = Regex.PING.get();
-        Matcher matcher = ping.matcher(message);
-        if (matcher.find()) {
-            int count = (int) ping.matcher(message).results().count();
-            for (int i = 0; i < count; i++) {
-                channel.write(ByteBuffer.wrap("+PONG\r\n".getBytes(StandardCharsets.UTF_8)));
-            }
+        int count = (int) ping.matcher(message).results().count();
+        if (count > 0) {
+            channel.write(ByteBuffer.wrap("+PONG\r\n".repeat(count).getBytes(StandardCharsets.UTF_8)));
         }
 
         key.interestOps(SelectionKey.OP_READ);
