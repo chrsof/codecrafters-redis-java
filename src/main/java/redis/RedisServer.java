@@ -1,7 +1,10 @@
 package redis;
 
 import config.Environment;
-import util.Regex;
+import io.Reply;
+import io.Request;
+import io.RespReader;
+import io.RespWriter;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -10,11 +13,8 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.Objects;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class RedisServer {
 
@@ -60,6 +60,7 @@ public class RedisServer {
         if (Objects.isNull(channel)) {
             return;
         }
+
         channel.configureBlocking(false);
         channel.register(selector, SelectionKey.OP_READ);
     }
@@ -73,21 +74,20 @@ public class RedisServer {
             byte[] bytes = new byte[buffer.limit()];
             buffer.get(bytes);
             buffer.clear();
-            String message = new String(bytes, StandardCharsets.UTF_8).strip();
-            channel.register(selector, SelectionKey.OP_WRITE, message);
+
+            Request request = RespReader.read(bytes);
+
+            channel.register(selector, SelectionKey.OP_WRITE, request);
         }
     }
 
     private void write(SelectionKey key) throws IOException {
         SocketChannel channel = (SocketChannel) key.channel();
 
-        String message = (String) key.attachment();
+        Request request = (Request) key.attachment();
+        Reply reply = RespWriter.write(request);
 
-        Pattern ping = Regex.PING.get();
-        int count = (int) ping.matcher(message).results().count();
-        if (count > 0) {
-            channel.write(ByteBuffer.wrap("+PONG\r\n".repeat(count).getBytes(StandardCharsets.UTF_8)));
-        }
+        channel.write(reply.toByteBuffer());
 
         key.interestOps(SelectionKey.OP_READ);
     }
